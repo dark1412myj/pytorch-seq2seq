@@ -128,7 +128,10 @@ else:
                       teacher_forcing_ratio=0.5,
                       resume=opt.resume)
 
-predictor = Predictor(seq2seq, input_vocab, output_vocab)
+topk_decoder = seq2seq.decoder
+topk_decoder = TopKDecoder(decoder, 10, False , True ,1.0)
+seq2seq = Seq2seq(encoder, topk_decoder)
+predictor = Predictor(seq2seq, input_vocab, output_vocab, False,1,float('inf'))
 
 while True:
     seq_str = raw_input("Type in a source sequence:")

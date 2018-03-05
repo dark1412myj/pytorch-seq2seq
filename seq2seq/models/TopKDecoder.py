@@ -71,8 +71,11 @@ class TopKDecoder(torch.nn.Module):
           outputs if provided for decoding}.
     """
 
-    def __init__(self, decoder_rnn, k):
+    def __init__(self, decoder_rnn, k ,use_cuda=True,use_diverse = False,diverse_rate = 1.0):
         super(TopKDecoder, self).__init__()
+        self.use_cuda=use_cuda
+        self.diverse_rate = diverse_rate
+        self.use_diverse = use_diverse
         self.rnn = decoder_rnn
         self.k = k
         self.hidden_size = self.rnn.hidden_size
@@ -90,6 +93,8 @@ class TopKDecoder(torch.nn.Module):
                                                                  function, teacher_forcing_ratio)
 
         self.pos_index = Variable(torch.LongTensor(range(batch_size)) * self.k).view(-1, 1)
+        if torch.cuda.is_available() and self.use_cuda:
+            self.pos_index = self.pos_index.cuda()
 
         # Inflate the initial hidden states to be of size: b*k x h
         encoder_hidden = self.rnn._init_state(encoder_hidden)
@@ -100,6 +105,8 @@ class TopKDecoder(torch.nn.Module):
                 hidden = tuple([_inflate(h, self.k, 1) for h in encoder_hidden])
             else:
                 hidden = _inflate(encoder_hidden, self.k, 1)
+            if torch.cuda.is_available() and self.use_cuda:
+                hidden = hidden.cuda()
 
         # ... same idea for encoder_outputs and decoder_outputs
         if self.rnn.use_attention:
@@ -127,6 +134,8 @@ class TopKDecoder(torch.nn.Module):
         for _ in range(0, max_length):
 
             # Run the RNN one step forward
+            if torch.cuda.is_available() and self.use_cuda:
+                input_var = input_var.cuda()
             log_softmax_output, hidden, _ = self.rnn.forward_step(input_var, hidden,
                                                                   inflated_encoder_outputs, function=function)
 
@@ -135,13 +144,24 @@ class TopKDecoder(torch.nn.Module):
                 stored_outputs.append(log_softmax_output)
 
             # To get the full sequence scores for the new candidates, add the local scores for t_i to the predecessor scores for t_(i-1)
-            sequence_scores = _inflate(sequence_scores, self.V, 1)
+            sequence_scores = _inflate(sequence_scores, self.V, 1)     # dark1412myj: inflate in order to add all vocab socore in the one same father 
+            if torch.cuda.is_available() and self.use_cuda:
+                sequence_scores = sequence_scores.cuda()
+                log_softmax_output =log_softmax_output.cuda()
+            
+            if self.use_diverse:
+                idx = log_softmax_output.clone().topk(self.V,2)[1]
+                for i in range(log_softmax_output.size()[0]):
+                    for j in range(log_softmax_output.size()[1]):
+                        for k in range(log_softmax_output.size()[2]):
+                            log_softmax_output[i][j][ idx[i][j][k].data[0] ].data[0] -= (k+1)*self.diverse_rate
+                
             sequence_scores += log_softmax_output.squeeze(1)
-            scores, candidates = sequence_scores.view(batch_size, -1).topk(self.k, dim=1)
+            scores, candidates = sequence_scores.view(batch_size, -1).topk(self.k, dim=1)#darkmyj: expand sequence k,v -> k*v,1 and then select max k,candidates is the index
 
             # Reshape input = (bk, 1) and sequence_scores = (bk, 1)
-            input_var = (candidates % self.V).view(batch_size * self.k, 1)
-            sequence_scores = scores.view(batch_size * self.k, 1)
+            input_var = (candidates % self.V).view(batch_size * self.k, 1)  #darkmyj : candidates mod v get the index of dst_vocab that will choice in next time
+            sequence_scores = scores.view(batch_size * self.k, 1)     #darkmyj : scores is the biggest scores,change senquence to v*k
 
             # Update fields for next timestep
             predecessors = (candidates / self.V + self.pos_index.expand_as(candidates)).view(batch_size * self.k, 1)
