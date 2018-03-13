@@ -1,5 +1,5 @@
 # seq2seq模型改进，增加多样性
-+ 根据论文[A Simple, Fast Diverse Decoding Algorithm for Neural Generation在seq2seq](https://arxiv.org/pdf/1611.08562.pdf),在beam search基础上进行修改
++ 根据论文[A Simple, Fast Diverse Decoding Algorithm for Neural Generation](https://arxiv.org/pdf/1611.08562.pdf),seq2seq在beam search基础上进行修改
 + 更改输出方式，可以通过设置偏差方式，来随机输出最好结果附近的结果
 + 发现代码中使用attention时，没有使用mask对encoder中的pad进行处理，可能造成结果偏差，之后更改
 
