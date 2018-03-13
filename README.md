@@ -4,9 +4,12 @@
 + 发现代码中使用attention时，没有使用mask对encoder中的pad进行处理，可能造成结果偏差，之后更改
 
 ## 使用方式：
-    `topk_decoder = (decoder_rnn, k ,use_cuda=True,use_diverse = False,diverse_rate = 1.0)`
-    `seq2seq = Seq2seq(encoder, topk_decoder)`
-    `predictor = Predictor(seq2seq, input_vocab, output_vocab,use_cuda=True,bias = 1, max_diff_rate = float('inf') )`
+    topk_decoder = (decoder_rnn, k ,use_cuda=True,use_diverse = False,diverse_rate = 1.0)
+    
+    seq2seq = Seq2seq(encoder, topk_decoder)
+    
+    predictor = Predictor(seq2seq, input_vocab, output_vocab,use_cuda=True,bias = 1, max_diff_rate = float('inf') )
+    
 ### use_cuda：是否使用gpu，
 ### use_diverse：多样化率γ，
 ### bias：再最好的bias个结果中随机输出一个，
